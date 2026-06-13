@@ -8,6 +8,9 @@ import { HistoryView } from "@/components/freewrite/HistoryView";
 import type { Entry } from "@/components/freewrite/types";
 import { WriteView } from "@/components/freewrite/WriteView";
 
+type TimerStatus = "idle" | "running" | "paused";
+type UpdateStatus = "idle" | "checking" | "current" | "installing" | "error";
+
 async function safeInvoke<T>(command: string, args?: Record<string, unknown>) {
   return invoke<T>(command, args);
 }
@@ -18,7 +21,10 @@ function App() {
   const [entryId, setEntryId] = useState<number | null>(null);
   const [content, setContent] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [timerStatus, setTimerStatus] = useState<TimerStatus>("idle");
+  const [timerDurationMinutes, setTimerDurationMinutes] = useState(15);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
 
   const wordCount = useMemo(
     () => content.trim().split(/\s+/).filter(Boolean).length,
@@ -29,23 +35,32 @@ function App() {
     document.documentElement.classList.remove("dark");
   }, []);
 
+  const installAvailableUpdate = async (showCurrentStatus: boolean) => {
+    setUpdateStatus("checking");
+
+    try {
+      const update = await check();
+
+      if (!update) {
+        setUpdateStatus(showCurrentStatus ? "current" : "idle");
+        return;
+      }
+
+      setUpdateStatus("installing");
+      await update.downloadAndInstall();
+      await relaunch();
+    } catch (error) {
+      setUpdateStatus("error");
+      console.warn("Update check failed", error);
+    }
+  };
+
   useEffect(() => {
     if (import.meta.env.DEV) {
       return;
     }
 
-    check()
-      .then(async (update) => {
-        if (!update) {
-          return;
-        }
-
-        await update.downloadAndInstall();
-        await relaunch();
-      })
-      .catch((error) => {
-        console.warn("Update check failed", error);
-      });
+    void installAvailableUpdate(false);
   }, []);
 
   useEffect(() => {
@@ -55,12 +70,27 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (timerStatus !== "running") {
+      return;
+    }
+
     const timer = window.setInterval(() => {
-      setElapsedSeconds((seconds) => seconds + 1);
+      setElapsedSeconds((seconds) => {
+        const nextSeconds = seconds + 1;
+        const durationSeconds = timerDurationMinutes * 60;
+
+        if (nextSeconds >= durationSeconds) {
+          window.clearInterval(timer);
+          setTimerStatus("paused");
+          return durationSeconds;
+        }
+
+        return nextSeconds;
+      });
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [timerDurationMinutes, timerStatus]);
 
   useEffect(() => {
     if (!content.trim()) {
@@ -87,6 +117,7 @@ function App() {
     setEntryId(null);
     setContent("");
     setElapsedSeconds(0);
+    setTimerStatus("idle");
     setActiveView("write");
   };
 
@@ -94,7 +125,36 @@ function App() {
     setEntryId(entry.id);
     setContent(entry.content);
     setElapsedSeconds(0);
+    setTimerStatus("idle");
     setActiveView("write");
+  };
+
+  const cycleTimerDuration = () => {
+    const durations = [5, 10, 15, 20, 25, 30];
+    const currentIndex = durations.indexOf(timerDurationMinutes);
+    const nextIndex =
+      currentIndex === durations.length - 1 ? 0 : currentIndex + 1;
+
+    setTimerDurationMinutes(durations[nextIndex]);
+  };
+
+  const startTimer = () => {
+    setElapsedSeconds(0);
+    setTimerStatus("running");
+  };
+
+  const toggleTimer = () => {
+    if (timerStatus === "idle") {
+      cycleTimerDuration();
+      return;
+    }
+
+    setTimerStatus((status) => (status === "running" ? "paused" : "running"));
+  };
+
+  const resetTimer = () => {
+    setElapsedSeconds(0);
+    setTimerStatus("idle");
   };
 
   const deleteEntry = (id: number) => {
@@ -127,10 +187,17 @@ function App() {
           activeView={activeView}
           elapsedSeconds={elapsedSeconds}
           onNewEntry={startNewEntry}
+          onResetTimer={resetTimer}
+          onStartTimer={startTimer}
+          onToggleTimer={toggleTimer}
+          onUpdate={() => installAvailableUpdate(true)}
           onToggleHistory={() =>
             setActiveView((view) => (view === "history" ? "write" : "history"))
           }
           storageError={storageError}
+          timerDurationMinutes={timerDurationMinutes}
+          timerStatus={timerStatus}
+          updateStatus={updateStatus}
           wordCount={wordCount}
         />
       </main>
