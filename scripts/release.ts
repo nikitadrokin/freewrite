@@ -8,11 +8,11 @@
  * until this project is wired to a tap.
  */
 
-import { Glob } from 'bun';
-import { stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
-import readline from 'node:readline/promises';
+import { Glob } from "bun";
+import { stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, join } from "node:path";
+import readline from "node:readline/promises";
 
 type TauriConf = {
   version: string;
@@ -20,14 +20,22 @@ type TauriConf = {
     createUpdaterArtifacts?: boolean | string;
     [key: string]: unknown;
   };
+  plugins?: {
+    updater?: {
+      pubkey?: string;
+      endpoints?: string[];
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
   [key: string]: unknown;
 };
 
-const GREEN = '\x1b[0;32m';
-const RED = '\x1b[0;31m';
-const CYAN = '\x1b[0;36m';
-const YELLOW = '\x1b[0;33m';
-const NC = '\x1b[0m';
+const GREEN = "\x1b[0;32m";
+const RED = "\x1b[0;31m";
+const CYAN = "\x1b[0;36m";
+const YELLOW = "\x1b[0;33m";
+const NC = "\x1b[0m";
 
 /** Parsed CLI flags for `release.ts`. */
 type ReleaseCliArgs = {
@@ -36,42 +44,46 @@ type ReleaseCliArgs = {
 };
 
 const scriptDir = import.meta.dir;
-const projectRoot = join(scriptDir, '..');
-const tauriConfPath = join(projectRoot, 'src-tauri/tauri.conf.json');
-const packageJsonPath = join(projectRoot, 'package.json');
-const cargoTomlPath = join(projectRoot, 'src-tauri/Cargo.toml');
-const dmgDir = join(projectRoot, 'src-tauri/target/release/bundle/dmg');
+const projectRoot = join(scriptDir, "..");
+const tauriConfPath = join(projectRoot, "src-tauri/tauri.conf.json");
+const packageJsonPath = join(projectRoot, "package.json");
+const cargoTomlPath = join(projectRoot, "src-tauri/Cargo.toml");
+const dmgDir = join(projectRoot, "src-tauri/target/release/bundle/dmg");
 const macosBundleDir = join(
   projectRoot,
-  'src-tauri/target/release/bundle/macos',
+  "src-tauri/target/release/bundle/macos",
 );
-const latestUpdaterJsonPath = join(macosBundleDir, 'latest.json');
+const latestUpdaterJsonPath = join(macosBundleDir, "latest.json");
 const defaultUpdaterSigningKeyPath = join(
   homedir(),
-  '.tauri/kokoros-updater.key',
+  ".tauri/freewrite-updater.key",
+);
+const defaultUpdaterPublicKeyPath = join(
+  homedir(),
+  ".tauri/freewrite-updater.pub",
 );
 
 // Homebrew support is intentionally disabled for now. To enable it later:
 // 1. Point this at the cask file in your tap.
 // 2. Uncomment updateHomebrewCaskIfConfigured(...) in main().
 // 3. Update updateCaskFile(...) with the release URL for this repo/tap.
-// const caskFilePath = join(projectRoot, '../homebrew-tap/Casks/kokoros.rb');
+// const caskFilePath = join(projectRoot, '../homebrew-tap/Casks/freewrite.rb');
 
 function parseArgs(argv: string[]): ReleaseCliArgs {
-  return { dryRun: argv.includes('--dry-run') };
+  return { dryRun: argv.includes("--dry-run") };
 }
 
 async function readTauriVersion(path: string): Promise<string> {
   const raw = await Bun.file(path).text();
   const parsed = JSON.parse(raw) as TauriConf;
-  if (typeof parsed.version !== 'string' || !parsed.version) {
+  if (typeof parsed.version !== "string" || !parsed.version) {
     throw new Error(`Invalid or missing version in ${path}`);
   }
   return parsed.version;
 }
 
 function nextPatchVersion(current: string): string {
-  const parts = current.split('.');
+  const parts = current.split(".");
   if (parts.length !== 3) {
     throw new Error(`Expected semver x.y.z, got: ${current}`);
   }
@@ -86,20 +98,20 @@ async function replaceVersionInFile(
   path: string,
   fromVersion: string,
   toVersion: string,
-  kind: 'tauri-json' | 'package-json' | 'cargo',
+  kind: "tauri-json" | "package-json" | "cargo",
 ): Promise<void> {
   let content = await Bun.file(path).text();
   switch (kind) {
-    case 'tauri-json':
-    case 'package-json':
+    case "tauri-json":
+    case "package-json":
       content = content.replace(
-        new RegExp(`"version": "${escapeRegExp(fromVersion)}"`, 'g'),
+        new RegExp(`"version": "${escapeRegExp(fromVersion)}"`, "g"),
         `"version": "${toVersion}"`,
       );
       break;
-    case 'cargo':
+    case "cargo":
       content = content.replace(
-        new RegExp(`^version = "${escapeRegExp(fromVersion)}"`, 'm'),
+        new RegExp(`^version = "${escapeRegExp(fromVersion)}"`, "m"),
         `version = "${toVersion}"`,
       );
       break;
@@ -112,14 +124,14 @@ async function replaceVersionInFile(
 }
 
 function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function sha256File(filePath: string): Promise<string> {
   const buf = await Bun.file(filePath).bytes();
-  const hasher = new Bun.CryptoHasher('sha256');
+  const hasher = new Bun.CryptoHasher("sha256");
   hasher.update(buf);
-  return hasher.digest('hex');
+  return hasher.digest("hex");
 }
 
 async function findDmgForVersion(version: string): Promise<string | undefined> {
@@ -150,7 +162,7 @@ async function findMacUpdaterArchive(): Promise<string | undefined> {
   }
 
   const matches: string[] = [];
-  const glob = new Glob('*.app.tar.gz');
+  const glob = new Glob("*.app.tar.gz");
   for await (const rel of glob.scan({ cwd: macosBundleDir, onlyFiles: true })) {
     matches.push(join(macosBundleDir, rel));
   }
@@ -158,10 +170,10 @@ async function findMacUpdaterArchive(): Promise<string | undefined> {
   return matches.sort()[0];
 }
 
-// GitHub normalizes asset names by replacing spaces with dots. Kokoros does not
+// GitHub normalizes asset names by replacing spaces with dots. freewrite does not
 // currently have spaces, but this keeps the Homebrew scaffolding future-proof.
 function githubReleaseAssetBasename(localBasename: string): string {
-  return localBasename.replace(/ /g, '.');
+  return localBasename.replace(/ /g, ".");
 }
 
 function githubReleaseDmgBasename(localBasename: string): string {
@@ -172,10 +184,10 @@ function updaterPlatformKeyFromDmg(dmgPath: string): string {
   const match = basename(dmgPath).match(/_([^_]+)\.dmg$/);
   const rawArch = match?.[1] ?? process.arch;
   const arch =
-    rawArch === 'arm64' || rawArch === 'aarch64'
-      ? 'aarch64'
-      : rawArch === 'x64' || rawArch === 'amd64' || rawArch === 'x86_64'
-        ? 'x86_64'
+    rawArch === "arm64" || rawArch === "aarch64"
+      ? "aarch64"
+      : rawArch === "x64" || rawArch === "amd64" || rawArch === "x86_64"
+        ? "x86_64"
         : rawArch;
 
   return `darwin-${arch}`;
@@ -183,6 +195,7 @@ function updaterPlatformKeyFromDmg(dmgPath: string): string {
 
 async function writeLatestUpdaterJson(
   version: string,
+  githubRepo: string,
   dmgPath: string,
   updaterArchivePath: string,
 ): Promise<string> {
@@ -202,7 +215,7 @@ async function writeLatestUpdaterJson(
     platforms: {
       [platformKey]: {
         signature,
-        url: `https://github.com/nikitadrokin/kokoros/releases/download/v${version}/${updaterAssetName}`,
+        url: `https://github.com/${githubRepo}/releases/download/v${version}/${updaterAssetName}`,
       },
     },
   };
@@ -212,6 +225,20 @@ async function writeLatestUpdaterJson(
     `${JSON.stringify(latestJson, null, 2)}\n`,
   );
   return latestUpdaterJsonPath;
+}
+
+function currentGithubRepo(): string {
+  const r = Bun.spawnSync(["git", "config", "--get", "remote.origin.url"], {
+    cwd: projectRoot,
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const remote = r.stdout ? r.stdout.toString().trim() : "";
+  const match =
+    remote.match(/^git@github\.com:([^/]+\/[^/.]+?)(?:\.git)?$/) ??
+    remote.match(/^https:\/\/github\.com\/([^/]+\/[^/.]+?)(?:\.git)?$/);
+  return match?.[1] ?? "nikitadrokin/freewrite";
 }
 
 async function ensureUpdaterSigningKey(): Promise<void> {
@@ -230,26 +257,60 @@ async function ensureUpdaterSigningKey(): Promise<void> {
     process.env.TAURI_SIGNING_PRIVATE_KEY = (
       await Bun.file(defaultUpdaterSigningKeyPath).text()
     ).trim();
-    process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ??= '';
+    process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ??= "";
     return;
   }
 
   throw new Error(
     [
-      'Updater signing key not found.',
+      "Updater signing key not found.",
       `Generate one with: bunx tauri signer generate -w ${defaultUpdaterSigningKeyPath}`,
-      'Then keep the private key secret and rerun this release command.',
-    ].join('\n'),
+      `Save the printed public key to: ${defaultUpdaterPublicKeyPath}`,
+      "Then keep the private key secret and rerun this release command.",
+    ].join("\n"),
   );
 }
 
-async function withUpdaterArtifactsEnabled(
+async function readUpdaterPublicKey(): Promise<string> {
+  if (process.env.TAURI_UPDATER_PUBLIC_KEY) {
+    return process.env.TAURI_UPDATER_PUBLIC_KEY.trim();
+  }
+
+  if (process.env.TAURI_UPDATER_PUBLIC_KEY_PATH) {
+    return (
+      await Bun.file(process.env.TAURI_UPDATER_PUBLIC_KEY_PATH).text()
+    ).trim();
+  }
+
+  if (await Bun.file(defaultUpdaterPublicKeyPath).exists()) {
+    return (await Bun.file(defaultUpdaterPublicKeyPath).text()).trim();
+  }
+
+  throw new Error(
+    [
+      "Updater public key not found.",
+      `Set TAURI_UPDATER_PUBLIC_KEY or save it to: ${defaultUpdaterPublicKeyPath}`,
+      `Generate keys with: bunx tauri signer generate -w ${defaultUpdaterSigningKeyPath}`,
+      "This public key is safe to ship in the app. Do not commit the private key.",
+    ].join("\n"),
+  );
+}
+
+async function withReleaseUpdaterConfig(
+  githubRepo: string,
+  updaterPublicKey: string,
   build: () => boolean,
 ): Promise<boolean> {
   const original = await Bun.file(tauriConfPath).text();
   const parsed = JSON.parse(original) as TauriConf;
   parsed.bundle ??= {};
   parsed.bundle.createUpdaterArtifacts = true;
+  parsed.plugins ??= {};
+  parsed.plugins.updater ??= {};
+  parsed.plugins.updater.pubkey = updaterPublicKey;
+  parsed.plugins.updater.endpoints = [
+    `https://github.com/${githubRepo}/releases/latest/download/latest.json`,
+  ];
 
   await Bun.write(tauriConfPath, `${JSON.stringify(parsed, null, 2)}\n`);
 
@@ -278,7 +339,7 @@ async function withUpdaterArtifactsEnabled(
 //   content = content.replace(/^(\s*sha256\s+")[^"]*(")/m, `$1${sha256}$2`);
 //   content = content.replace(
 //     /^(\s*url\s+")[^"]+(")/m,
-//     `$1https://github.com/nikitadrokin/kokoros/releases/download/v#{version}/${urlFilename}$2`,
+//     `$1https://github.com/nikitadrokin/freewrite/releases/download/v#{version}/${urlFilename}$2`,
 //   );
 //   await Bun.write(caskFilePath, content);
 // }
@@ -298,7 +359,7 @@ async function withUpdaterArtifactsEnabled(
 // }
 
 async function deleteBunBuildArtifacts(root: string): Promise<void> {
-  const glob = new Glob('**/*.bun-build');
+  const glob = new Glob("**/*.bun-build");
   for await (const abs of glob.scan({
     cwd: root,
     absolute: true,
@@ -309,12 +370,12 @@ async function deleteBunBuildArtifacts(root: string): Promise<void> {
 }
 
 function runTauriBuild(): boolean {
-  const r = Bun.spawnSync(['bunx', 'tauri', 'build'], {
+  const r = Bun.spawnSync(["bunx", "tauri", "build"], {
     cwd: projectRoot,
     env: { ...process.env },
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
   });
   return r.success;
 }
@@ -326,57 +387,57 @@ function tryExecFile(
 ): { ok: boolean; stderr: string } {
   const r = Bun.spawnSync([file, ...args], {
     cwd,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
   });
   if (r.success) {
-    return { ok: true, stderr: '' };
+    return { ok: true, stderr: "" };
   }
-  const stderr = r.stderr ? r.stderr.toString() : '';
+  const stderr = r.stderr ? r.stderr.toString() : "";
   return { ok: false, stderr };
 }
 
 function gitQuiet(args: string[]): boolean {
-  const r = Bun.spawnSync(['git', ...args], {
+  const r = Bun.spawnSync(["git", ...args], {
     cwd: projectRoot,
-    stdin: 'ignore',
-    stdout: 'ignore',
-    stderr: 'ignore',
+    stdin: "ignore",
+    stdout: "ignore",
+    stderr: "ignore",
   });
   return r.success;
 }
 
 function gitStagedDiffQuiet(): boolean {
   const r = Bun.spawnSync(
-    ['git', '-C', projectRoot, 'diff', '--cached', '--quiet'],
+    ["git", "-C", projectRoot, "diff", "--cached", "--quiet"],
     {
       cwd: projectRoot,
-      stdin: 'ignore',
-      stdout: 'ignore',
-      stderr: 'ignore',
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore",
     },
   );
   return r.success;
 }
 
 function currentGitBranch(): string {
-  const r = Bun.spawnSync(['git', 'branch', '--show-current'], {
+  const r = Bun.spawnSync(["git", "branch", "--show-current"], {
     cwd: projectRoot,
-    stdin: 'ignore',
-    stdout: 'pipe',
-    stderr: 'pipe',
+    stdin: "ignore",
+    stdout: "pipe",
+    stderr: "pipe",
   });
-  const branch = r.stdout ? r.stdout.toString().trim() : '';
-  return branch || 'master';
+  const branch = r.stdout ? r.stdout.toString().trim() : "";
+  return branch || "master";
 }
 
 function spawnGitInherit(args: string[]): void {
-  const r = Bun.spawnSync(['git', ...args], {
+  const r = Bun.spawnSync(["git", ...args], {
     cwd: projectRoot,
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
   });
   if (!r.success) {
     process.exit(r.exitCode === 0 ? 1 : r.exitCode);
@@ -384,11 +445,11 @@ function spawnGitInherit(args: string[]): void {
 }
 
 function spawnGhInherit(args: string[]): void {
-  const r = Bun.spawnSync(['gh', ...args], {
+  const r = Bun.spawnSync(["gh", ...args], {
     cwd: projectRoot,
-    stdin: 'inherit',
-    stdout: 'inherit',
-    stderr: 'inherit',
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
   });
   if (!r.success) {
     process.exit(r.exitCode === 0 ? 1 : r.exitCode);
@@ -401,10 +462,11 @@ async function main(): Promise<void> {
   const currentVersion = await readTauriVersion(tauriConfPath);
   const nextVersion = nextPatchVersion(currentVersion);
   const branch = currentGitBranch();
+  const githubRepo = currentGithubRepo();
 
   console.log(`${YELLOW}Current version: ${currentVersion}${NC}`);
   console.log(`${GREEN}Next version:    ${nextVersion}${NC}`);
-  console.log('');
+  console.log("");
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -414,8 +476,8 @@ async function main(): Promise<void> {
     `Bump version to ${nextVersion} before building? (y/N) `,
   );
   rl.close();
-  console.log('');
-  console.log('');
+  console.log("");
+  console.log("");
 
   let versionToBuild: string;
   let sameVersionRelease = false;
@@ -428,35 +490,42 @@ async function main(): Promise<void> {
       tauriConfPath,
       currentVersion,
       nextVersion,
-      'tauri-json',
+      "tauri-json",
     );
-    console.log('  ✓ Updated tauri.conf.json');
+    console.log("  ✓ Updated tauri.conf.json");
 
     await replaceVersionInFile(
       packageJsonPath,
       currentVersion,
       nextVersion,
-      'package-json',
+      "package-json",
     );
-    console.log('  ✓ Updated package.json');
+    console.log("  ✓ Updated package.json");
 
     await replaceVersionInFile(
       cargoTomlPath,
       currentVersion,
       nextVersion,
-      'cargo',
+      "cargo",
     );
-    console.log('  ✓ Updated Cargo.toml');
+    console.log("  ✓ Updated Cargo.toml");
   } else {
     versionToBuild = currentVersion;
     sameVersionRelease = true;
     console.log(`${YELLOW}Keeping current version ${currentVersion}${NC}`);
   }
 
-  console.log('');
+  console.log("");
   console.log(`${CYAN}Building release v${versionToBuild}...${NC}`);
   await ensureUpdaterSigningKey();
-  if (!(await withUpdaterArtifactsEnabled(runTauriBuild))) {
+  const updaterPublicKey = await readUpdaterPublicKey();
+  if (
+    !(await withReleaseUpdaterConfig(
+      githubRepo,
+      updaterPublicKey,
+      runTauriBuild,
+    ))
+  ) {
     console.log(`${RED}Build failed!${NC}`);
     process.exit(1);
   }
@@ -494,11 +563,12 @@ async function main(): Promise<void> {
   }
   const latestUpdaterPath = await writeLatestUpdaterJson(
     versionToBuild,
+    githubRepo,
     dmgPath,
     updaterArchivePath,
   );
 
-  // Homebrew is not wired up for Kokoros yet.
+  // Homebrew is not wired up for freewrite yet.
   // await updateHomebrewCaskIfConfigured(versionToBuild, sha256, dmgPath);
 
   try {
@@ -507,7 +577,7 @@ async function main(): Promise<void> {
     // best-effort cleanup
   }
 
-  console.log('');
+  console.log("");
   console.log(
     `${GREEN}═══════════════════════════════════════════════════════════════${NC}`,
   );
@@ -527,17 +597,17 @@ async function main(): Promise<void> {
   );
 
   if (!dryRun) {
-    console.log('');
+    console.log("");
     console.log(`${CYAN}Publishing release...${NC}`);
 
     if (sameVersionRelease) {
-      console.log('');
+      console.log("");
       console.log(
         `${YELLOW}Same version release — cleaning up any existing tag/release...${NC}`,
       );
       const ghDel = tryExecFile(
-        'gh',
-        ['release', 'delete', `v${versionToBuild}`, '--yes'],
+        "gh",
+        ["release", "delete", `v${versionToBuild}`, "--yes"],
         projectRoot,
       );
       if (ghDel.ok) {
@@ -547,11 +617,11 @@ async function main(): Promise<void> {
       }
       if (
         gitQuiet([
-          '-C',
+          "-C",
           projectRoot,
-          'push',
-          'origin',
-          '--delete',
+          "push",
+          "origin",
+          "--delete",
           `v${versionToBuild}`,
         ])
       ) {
@@ -559,82 +629,82 @@ async function main(): Promise<void> {
       } else {
         console.log(`${YELLOW}  ⏭ No remote tag to delete${NC}`);
       }
-      if (gitQuiet(['-C', projectRoot, 'tag', '-d', `v${versionToBuild}`])) {
+      if (gitQuiet(["-C", projectRoot, "tag", "-d", `v${versionToBuild}`])) {
         console.log(`${GREEN}  ✓ Deleted local tag${NC}`);
       } else {
         console.log(`${YELLOW}  ⏭ No local tag to delete${NC}`);
       }
-      console.log('');
+      console.log("");
     }
 
     console.log(`${CYAN}Step 1: Committing changes...${NC}`);
-    spawnGitInherit(['-C', projectRoot, 'add', '-A']);
+    spawnGitInherit(["-C", projectRoot, "add", "-A"]);
     if (gitStagedDiffQuiet()) {
       console.log(`${YELLOW}  ⏭ Nothing to commit${NC}`);
     } else {
       spawnGitInherit([
-        '-C',
+        "-C",
         projectRoot,
-        'commit',
-        '-m',
+        "commit",
+        "-m",
         `Release v${versionToBuild}`,
       ]);
       console.log(`${GREEN}  ✓ Changes committed${NC}`);
     }
 
     console.log(`${CYAN}Step 2: Creating tag and pushing...${NC}`);
-    spawnGitInherit(['-C', projectRoot, 'tag', `v${versionToBuild}`]);
-    spawnGitInherit(['-C', projectRoot, 'push', 'origin', branch, '--tags']);
+    spawnGitInherit(["-C", projectRoot, "tag", `v${versionToBuild}`]);
+    spawnGitInherit(["-C", projectRoot, "push", "origin", branch, "--tags"]);
     console.log(`${GREEN}  ✓ Tag v${versionToBuild} pushed${NC}`);
 
     console.log(`${CYAN}Step 3: Creating GitHub release...${NC}`);
     spawnGhInherit([
-      'release',
-      'create',
+      "release",
+      "create",
       `v${versionToBuild}`,
       dmgPath,
       updaterArchivePath,
       updaterSignaturePath,
       latestUpdaterPath,
-      '--title',
+      "--title",
       `v${versionToBuild}`,
-      '--generate-notes',
+      "--generate-notes",
     ]);
     console.log(`${GREEN}  ✓ GitHub release created${NC}`);
 
-    console.log('');
+    console.log("");
     console.log(`${GREEN}Release v${versionToBuild} published!${NC}`);
   } else {
-    console.log('');
+    console.log("");
     console.log(`${CYAN}To publish this release:${NC}`);
-    console.log('');
+    console.log("");
 
     if (sameVersionRelease) {
       console.log(
-        '  0. Clean up existing tag/release (errors are safe to ignore):',
+        "  0. Clean up existing tag/release (errors are safe to ignore):",
       );
       console.log(`     gh release delete v${versionToBuild} --yes`);
       console.log(`     git push origin --delete v${versionToBuild}`);
       console.log(`     git tag -d v${versionToBuild}`);
-      console.log('');
+      console.log("");
     }
 
-    console.log('  1. Commit changes:');
+    console.log("  1. Commit changes:");
     console.log(
       `     git add -A && git commit -m "Release v${versionToBuild}"`,
     );
-    console.log('');
-    console.log('  2. Create tag:');
+    console.log("");
+    console.log("  2. Create tag:");
     console.log(`     git tag v${versionToBuild}`);
     console.log(`     git push origin ${branch} --tags`);
-    console.log('');
-    console.log('  3. Create GitHub release:');
+    console.log("");
+    console.log("  3. Create GitHub release:");
     console.log(
       `     gh release create v${versionToBuild} "${dmgPath}" "${updaterArchivePath}" "${updaterSignaturePath}" "${latestUpdaterPath}" --title "v${versionToBuild}" --generate-notes`,
     );
-    console.log('');
+    console.log("");
     console.log(`${YELLOW}Tip: Omit --dry-run to publish automatically.${NC}`);
-    console.log('');
+    console.log("");
   }
 }
 

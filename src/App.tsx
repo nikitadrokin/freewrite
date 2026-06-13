@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { check } from "@tauri-apps/plugin-updater";
 import { useEffect, useMemo, useState } from "react";
 
 import { Footer } from "@/components/freewrite/Footer";
@@ -25,6 +27,25 @@ function App() {
 
   useEffect(() => {
     document.documentElement.classList.remove("dark");
+  }, []);
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      return;
+    }
+
+    check()
+      .then(async (update) => {
+        if (!update) {
+          return;
+        }
+
+        await update.downloadAndInstall();
+        await relaunch();
+      })
+      .catch((error) => {
+        console.warn("Update check failed", error);
+      });
   }, []);
 
   useEffect(() => {

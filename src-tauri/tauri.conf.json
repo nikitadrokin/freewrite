@@ -33,5 +33,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "TAURI_UPDATER_PUBLIC_KEY_SET_BY_RELEASE_SCRIPT",
+      "endpoints": [
+        "https://github.com/nikitadrokin/freewrite/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
