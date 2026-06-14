@@ -5,7 +5,7 @@ import type { Entry } from "./types";
 
 type HistoryViewProps = {
   entries: Entry[];
-  onDeleteEntry: (id: number) => void;
+  onDeleteEntry: (id: string) => void;
   onNewEntry: () => void;
   onOpenEntry: (entry: Entry) => void;
 };

@@ -18,7 +18,7 @@ async function safeInvoke<T>(command: string, args?: Record<string, unknown>) {
 function App() {
   const [activeView, setActiveView] = useState<"write" | "history">("write");
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [entryId, setEntryId] = useState<number | null>(null);
+  const [entryId, setEntryId] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [timerStatus, setTimerStatus] = useState<TimerStatus>("idle");
@@ -157,7 +157,7 @@ function App() {
     setTimerStatus("idle");
   };
 
-  const deleteEntry = (id: number) => {
+  const deleteEntry = (id: string) => {
     safeInvoke<void>("delete_entry", { id })
       .then(() => {
         setEntries((current) => current.filter((entry) => entry.id !== id));
