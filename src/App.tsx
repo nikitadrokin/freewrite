@@ -1,30 +1,30 @@
-import { invoke } from "@tauri-apps/api/core";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check } from "@tauri-apps/plugin-updater";
-import { useEffect, useMemo, useState } from "react";
+import { invoke } from '@tauri-apps/api/core';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { check } from '@tauri-apps/plugin-updater';
+import { useEffect, useMemo, useState } from 'react';
 
-import { Footer } from "@/components/freewrite/Footer";
-import { HistoryView } from "@/components/freewrite/HistoryView";
-import type { Entry } from "@/components/freewrite/types";
-import { WriteView } from "@/components/freewrite/WriteView";
+import { Footer } from '@/components/freewrite/Footer';
+import { HistoryView } from '@/components/freewrite/HistoryView';
+import type { Entry } from '@/components/freewrite/types';
+import { WriteView } from '@/components/freewrite/WriteView';
 
-type TimerStatus = "idle" | "running" | "paused";
-type UpdateStatus = "idle" | "checking" | "current" | "installing" | "error";
+type TimerStatus = 'idle' | 'running' | 'paused';
+type UpdateStatus = 'idle' | 'checking' | 'current' | 'installing' | 'error';
 
 async function safeInvoke<T>(command: string, args?: Record<string, unknown>) {
   return invoke<T>(command, args);
 }
 
 function App() {
-  const [activeView, setActiveView] = useState<"write" | "history">("write");
+  const [activeView, setActiveView] = useState<'write' | 'history'>('write');
   const [entries, setEntries] = useState<Entry[]>([]);
   const [entryId, setEntryId] = useState<string | null>(null);
-  const [content, setContent] = useState("");
+  const [content, setContent] = useState('');
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [timerStatus, setTimerStatus] = useState<TimerStatus>("idle");
+  const [timerStatus, setTimerStatus] = useState<TimerStatus>('idle');
   const [timerDurationMinutes, setTimerDurationMinutes] = useState(15);
   const [storageError, setStorageError] = useState<string | null>(null);
-  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+  const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
 
   const wordCount = useMemo(
     () => content.trim().split(/\s+/).filter(Boolean).length,
@@ -32,26 +32,26 @@ function App() {
   );
 
   useEffect(() => {
-    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.remove('dark');
   }, []);
 
   const installAvailableUpdate = async (showCurrentStatus: boolean) => {
-    setUpdateStatus("checking");
+    setUpdateStatus('checking');
 
     try {
       const update = await check();
 
       if (!update) {
-        setUpdateStatus(showCurrentStatus ? "current" : "idle");
+        setUpdateStatus(showCurrentStatus ? 'current' : 'idle');
         return;
       }
 
-      setUpdateStatus("installing");
+      setUpdateStatus('installing');
       await update.downloadAndInstall();
       await relaunch();
     } catch (error) {
-      setUpdateStatus("error");
-      console.warn("Update check failed", error);
+      setUpdateStatus('error');
+      console.warn('Update check failed', error);
     }
   };
 
@@ -64,13 +64,13 @@ function App() {
   }, []);
 
   useEffect(() => {
-    safeInvoke<Entry[]>("list_entries")
+    safeInvoke<Entry[]>('list_entries')
       .then(setEntries)
       .catch((error) => setStorageError(String(error)));
   }, []);
 
   useEffect(() => {
-    if (timerStatus !== "running") {
+    if (timerStatus !== 'running') {
       return;
     }
 
@@ -81,7 +81,7 @@ function App() {
 
         if (nextSeconds >= durationSeconds) {
           window.clearInterval(timer);
-          setTimerStatus("paused");
+          setTimerStatus('paused');
           return durationSeconds;
         }
 
@@ -98,7 +98,7 @@ function App() {
     }
 
     const timeout = window.setTimeout(() => {
-      safeInvoke<Entry>("save_entry", { id: entryId, content })
+      safeInvoke<Entry>('save_entry', { id: entryId, content })
         .then((entry) => {
           setEntryId(entry.id);
           setEntries((current) => {
@@ -115,18 +115,18 @@ function App() {
 
   const startNewEntry = () => {
     setEntryId(null);
-    setContent("");
+    setContent('');
     setElapsedSeconds(0);
-    setTimerStatus("idle");
-    setActiveView("write");
+    setTimerStatus('idle');
+    setActiveView('write');
   };
 
   const openEntry = (entry: Entry) => {
     setEntryId(entry.id);
     setContent(entry.content);
     setElapsedSeconds(0);
-    setTimerStatus("idle");
-    setActiveView("write");
+    setTimerStatus('idle');
+    setActiveView('write');
   };
 
   const cycleTimerDuration = () => {
@@ -140,25 +140,25 @@ function App() {
 
   const startTimer = () => {
     setElapsedSeconds(0);
-    setTimerStatus("running");
+    setTimerStatus('running');
   };
 
   const toggleTimer = () => {
-    if (timerStatus === "idle") {
+    if (timerStatus === 'idle') {
       cycleTimerDuration();
       return;
     }
 
-    setTimerStatus((status) => (status === "running" ? "paused" : "running"));
+    setTimerStatus((status) => (status === 'running' ? 'paused' : 'running'));
   };
 
   const resetTimer = () => {
     setElapsedSeconds(0);
-    setTimerStatus("idle");
+    setTimerStatus('idle');
   };
 
   const deleteEntry = (id: string) => {
-    safeInvoke<void>("delete_entry", { id })
+    safeInvoke<void>('delete_entry', { id })
       .then(() => {
         setEntries((current) => current.filter((entry) => entry.id !== id));
         if (entryId === id) {
@@ -169,10 +169,10 @@ function App() {
   };
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-background text-foreground antialiased">
-      <div className="texture" />
-      <main className="relative z-10 flex h-dvh flex-col">
-        {activeView === "write" ? (
+    <div className='relative min-h-dvh overflow-hidden bg-background text-foreground antialiased'>
+      <div className='texture' />
+      <main className='relative z-10 flex h-dvh flex-col'>
+        {activeView === 'write' ? (
           <WriteView content={content} onContentChange={setContent} />
         ) : (
           <HistoryView
@@ -192,7 +192,7 @@ function App() {
           onToggleTimer={toggleTimer}
           onUpdate={() => installAvailableUpdate(true)}
           onToggleHistory={() =>
-            setActiveView((view) => (view === "history" ? "write" : "history"))
+            setActiveView((view) => (view === 'history' ? 'write' : 'history'))
           }
           storageError={storageError}
           timerDurationMinutes={timerDurationMinutes}
