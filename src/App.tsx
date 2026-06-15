@@ -170,6 +170,10 @@ function App() {
 
   return (
     <div className='relative min-h-dvh overflow-hidden bg-background text-foreground antialiased'>
+      <div
+        data-tauri-drag-region
+        className='fixed inset-x-0 top-0 z-50 h-8 w-full'
+      />
       <div className='texture' />
       <main className='relative z-10 flex h-dvh flex-col'>
         {activeView === 'write' ? (
