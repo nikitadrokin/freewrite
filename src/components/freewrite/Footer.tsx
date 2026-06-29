@@ -64,13 +64,15 @@ export function Footer({
       : 'Update';
   const updateDisabled =
     updateStatus === 'checking' || updateStatus === 'installing';
+  const pauseResumeLabel =
+    timerStatus === 'running' ? 'Pause' : 'Resume';
 
   return (
-    <footer className='z-20 select-none border-t px-4 py-3 text-muted-foreground'>
-      <div className='mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-5 gap-y-3 text-sm sm:text-base'>
+    <footer className='z-20 select-none border-t px-4 py-2 text-muted-foreground'>
+      <div className='mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-3 gap-y-2 text-sm'>
         <span>{wordCount} words</span>
 
-        <div className='flex items-center gap-2'>
+        <div className='flex items-center gap-1'>
           <ToolbarButton
             active={timerStatus !== 'idle'}
             aria-label={timerTitle}
@@ -81,43 +83,66 @@ export function Footer({
             {timerLabel}
           </ToolbarButton>
           {timerStatus === 'idle' ? (
-            <ToolbarButton onClick={onStartTimer}>
+            <ToolbarButton
+              aria-label='Start timer'
+              iconOnly
+              onClick={onStartTimer}
+              title='Start timer'
+            >
               <Play className='size-4' />
-              Start
             </ToolbarButton>
           ) : (
             <>
-              <ToolbarButton onClick={onToggleTimer}>
+              <ToolbarButton
+                aria-label={`${pauseResumeLabel} timer`}
+                iconOnly
+                onClick={onToggleTimer}
+                title={`${pauseResumeLabel} timer`}
+              >
                 {timerStatus === 'running' ? (
                   <Pause className='size-4' />
                 ) : (
                   <Play className='size-4' />
                 )}
-                {timerStatus === 'running' ? 'Pause' : 'Resume'}
               </ToolbarButton>
-              <ToolbarButton onClick={onResetTimer}>
+              <ToolbarButton
+                aria-label='Reset timer'
+                iconOnly
+                onClick={onResetTimer}
+                title='Reset timer'
+              >
                 <RotateCcw className='size-4' />
-                Reset
               </ToolbarButton>
             </>
           )}
         </div>
 
-        <div className='flex items-center gap-2'>
-          <ToolbarButton disabled={updateDisabled} onClick={onUpdate}>
+        <div className='flex items-center gap-1'>
+          <ToolbarButton
+            aria-label={updateLabel}
+            disabled={updateDisabled}
+            iconOnly
+            onClick={onUpdate}
+            title={updateLabel}
+          >
             <Download className='size-4' />
-            {updateLabel}
           </ToolbarButton>
-          <ToolbarButton onClick={onNewEntry}>
+          <ToolbarButton
+            aria-label='New entry'
+            iconOnly
+            onClick={onNewEntry}
+            title='New entry'
+          >
             <Plus className='size-4' />
-            New Entry
           </ToolbarButton>
           <ToolbarButton
             active={activeView === 'history'}
+            aria-label='History'
+            iconOnly
             onClick={onToggleHistory}
+            title='History'
           >
             <History className='size-4' />
-            History
           </ToolbarButton>
         </div>
       </div>
@@ -137,19 +162,26 @@ export function Footer({
 
 function ToolbarButton({
   active = false,
+  children,
   className,
+  iconOnly = false,
   ...props
-}: ComponentProps<'button'> & { active?: boolean }) {
+}: ComponentProps<'button'> & { active?: boolean; iconOnly?: boolean }) {
   return (
     <button
       className={cn(
-        'inline-flex h-8 items-center gap-2 rounded-md px-2 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
+        'inline-flex items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground',
+        iconOnly
+          ? 'size-8 shrink-0 justify-center'
+          : 'h-8 gap-2 px-2',
         active && 'bg-accent text-accent-foreground',
         props.disabled && 'cursor-not-allowed opacity-60 hover:bg-transparent',
         className,
       )}
       type='button'
       {...props}
-    />
+    >
+      {children}
+    </button>
   );
 }
